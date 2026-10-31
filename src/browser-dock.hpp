@@ -57,4 +57,5 @@ private:
 	QTimer *timer;
 	QHash<QString, QTreeWidgetItem *> items;
 	bool paused = true;
+	bool columnsFitted = false;
 };

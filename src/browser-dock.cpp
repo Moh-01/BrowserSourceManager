@@ -28,9 +28,12 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QPainter>
+#include <QPixmap>
 #include <QMessageBox>
 #include <QSet>
 #include <QTimer>
@@ -101,6 +104,24 @@ QColor StateColor(BrowserState state)
 		return QColor(139, 148, 158);
 	}
 	return {};
+}
+
+// A colored dot drawn as an icon. Themes restyle item text colors, but not icons.
+QIcon StateIcon(BrowserState state)
+{
+	static QIcon icons[4];
+	QIcon &icon = icons[(int)state];
+	if (icon.isNull()) {
+		QPixmap pixmap(24, 24);
+		pixmap.fill(Qt::transparent);
+		QPainter painter(&pixmap);
+		painter.setRenderHint(QPainter::Antialiasing);
+		painter.setPen(Qt::NoPen);
+		painter.setBrush(StateColor(state));
+		painter.drawEllipse(QRectF(5, 5, 14, 14));
+		icon = QIcon(pixmap);
+	}
+	return icon;
 }
 
 // Short, token-free label for the page: the host for web pages, the file name for local files.
@@ -260,8 +281,8 @@ void BrowserDock::Reload()
 		for (const auto &scene : info.scenes)
 			scenes << QString::fromStdString(scene);
 
-		item->setText(ColState, QString::fromUtf8("●  ") + StateLabel(info.state));
-		item->setForeground(ColState, StateColor(info.state));
+		item->setIcon(ColState, StateIcon(info.state));
+		item->setText(ColState, StateLabel(info.state));
 		item->setToolTip(ColState, StateTooltip(info.state));
 		item->setData(ColState, SortRole, (int)info.state);
 		item->setData(ColState, StateRole, (int)info.state);
@@ -297,6 +318,11 @@ void BrowserDock::Reload()
 	}
 
 	tree->setSortingEnabled(true);
+
+	if (!columnsFitted && !items.isEmpty()) {
+		tree->header()->resizeSections(QHeaderView::ResizeToContents);
+		columnsFitted = true;
+	}
 
 	summary->setText(Text("Summary")
 				 .arg(sources.size())
