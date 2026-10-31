@@ -1,0 +1,17 @@
+# Build output and downloaded dependencies
+/build_*/
+/.deps/
+/release/
+
+# Local build settings
+CMakeUserPresets.json
+
+# CMake build number cache
+/cmake/.CMakeBuildNumber
+
+# Editors and OS
+.vs/
+.vscode/
+*.user
+.DS_Store
+Thumbs.db
