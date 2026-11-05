@@ -1,21 +1,3 @@
-/*
-Browser Source Manager
-Copyright (C) 2026 Moh-01
-
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along
-with this program. If not, see <https://www.gnu.org/licenses/>
-*/
-
 #include "browser-dock.hpp"
 #include "browser-sources.hpp"
 
@@ -53,7 +35,6 @@ constexpr int ShutdownRole = Qt::UserRole + 3;
 constexpr int UrlRole = Qt::UserRole + 4;
 constexpr int SearchRole = Qt::UserRole + 5;
 
-// Filter combo entries, in order. -1 means "all states".
 constexpr int kFilterAll = -1;
 
 QString Text(const char *key)
@@ -91,6 +72,7 @@ QString StateTooltip(BrowserState state)
 	return {};
 }
 
+// Edit here to change the state dot colors. If you change one, every dot for that state uses the new color.
 QColor StateColor(BrowserState state)
 {
 	switch (state) {
@@ -106,7 +88,7 @@ QColor StateColor(BrowserState state)
 	return {};
 }
 
-// A colored dot drawn as an icon. Themes restyle item text colors, but not icons.
+// Edit the ellipse here to change the dot size. If you make it larger than the 24x24 pixmap, the dot gets cut off.
 QIcon StateIcon(BrowserState state)
 {
 	static QIcon icons[4];
@@ -124,7 +106,7 @@ QIcon StateIcon(BrowserState state)
 	return icon;
 }
 
-// Short, token-free label for the page: the host for web pages, the file name for local files.
+// Edit here to change what the Page column shows. If you return the full url, overlay keys and tokens become visible.
 QString PageLabel(const BrowserSourceInfo &info)
 {
 	QString url = QString::fromStdString(info.url);
@@ -153,7 +135,7 @@ public:
 	}
 };
 
-} // namespace
+}
 
 BrowserDock::BrowserDock(QWidget *parent) : QWidget(parent)
 {
@@ -210,6 +192,7 @@ BrowserDock::BrowserDock(QWidget *parent) : QWidget(parent)
 	layout->addWidget(summary);
 
 	timer = new QTimer(this);
+	// Edit here to change how often the list updates, in milliseconds. Lower updates faster but uses more CPU.
 	timer->setInterval(1000);
 
 	connect(timer, &QTimer::timeout, this, &BrowserDock::Reload);
@@ -419,8 +402,7 @@ void BrowserDock::RefreshAll()
 
 void BrowserDock::UnloadHidden()
 {
-	// Only touch sources that are not shown anywhere: changing the setting reloads the page,
-	// which must never happen to something that is on air.
+	// Edit here to change which sources Unload hidden affects. If you include sources that are showing, they reload on air.
 	QStringList targets;
 	for (QTreeWidgetItem *item : items) {
 		if (item->data(ColState, StateRole).toInt() == (int)BrowserState::RunningHidden)

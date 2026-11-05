@@ -1,8 +1,5 @@
-# CMake common helper functions module
-
 include_guard(GLOBAL)
 
-# check_uuid: Helper function to check for valid UUID
 function(check_uuid uuid_string return_value)
   set(valid_uuid TRUE)
   # gersemi: off

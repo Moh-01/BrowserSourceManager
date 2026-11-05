@@ -1,15 +1,7 @@
-# CMake Windows helper functions module
-
 include_guard(GLOBAL)
 
 include(helpers_common)
 
-# set_target_properties_plugin: Set target properties for use in obs-studio
-#
-# Every plugin is laid out the way OBS expects it under %ProgramData%\obs-studio\plugins:
-#   <target>/bin/64bit/<target>.dll
-#   <target>/data/...
-# The same layout is produced in <build>/rundir/<config>/ after each build.
 function(set_target_properties_plugin target)
   set(options "")
   set(oneValueArgs "")
@@ -36,6 +28,7 @@ function(set_target_properties_plugin target)
     OPTIONAL
   )
 
+  # Edit here to change the build output folder. OBS only loads plugins laid out as <id>/bin/64bit and <id>/data.
   set(_rundir "${CMAKE_BINARY_DIR}/rundir/$<CONFIG>/${target}")
 
   add_custom_command(
@@ -60,7 +53,6 @@ function(set_target_properties_plugin target)
   target_sources(${target} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/${target}.rc")
 endfunction()
 
-# Helper function to add resources into bundle
 function(target_install_resources target)
   message(DEBUG "Installing resources for target ${target}...")
   if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/data")

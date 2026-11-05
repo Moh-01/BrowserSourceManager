@@ -14,6 +14,7 @@ find_package(libobs REQUIRED)
 find_package(obs-frontend-api REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
 
+# Edit this list when you add or remove source files. If a file is not listed here, it is not built.
 target_sources(
   ${CMAKE_PROJECT_NAME}
   PRIVATE src/plugin-main.cpp src/browser-dock.cpp src/browser-dock.hpp src/browser-sources.cpp src/browser-sources.hpp

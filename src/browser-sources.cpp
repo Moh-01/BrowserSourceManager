@@ -1,21 +1,3 @@
-/*
-Browser Source Manager
-Copyright (C) 2026 Moh-01
-
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along
-with this program. If not, see <https://www.gnu.org/licenses/>
-*/
-
 #include "browser-sources.hpp"
 
 #include <obs-frontend-api.h>
@@ -116,7 +98,7 @@ OBSSourceAutoRelease GetBrowserSource(const std::string &uuid)
 	return source;
 }
 
-} // namespace
+}
 
 std::vector<BrowserSourceInfo> CollectBrowserSources()
 {
@@ -146,7 +128,6 @@ bool RefreshBrowserSource(const std::string &uuid)
 	if (!source)
 		return false;
 
-	// Same as pressing "Refresh cache of current page" in the source properties.
 	obs_properties_t *props = obs_source_properties(source);
 	obs_property_t *button = obs_properties_get(props, "refreshnocache");
 	if (button)

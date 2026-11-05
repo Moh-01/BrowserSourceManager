@@ -1,19 +1,15 @@
-# CMake common compiler options module
-
 include_guard(GLOBAL)
 
-# Set C and C++ language standards to C17 and C++17
+# Edit here to change the C and C++ standard. OBS headers need at least C17 and C++17.
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED TRUE)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
-# Set symbols to be hidden by default for C and C++
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN TRUE)
 
-# clang options for C, C++, ObjC, and ObjC++
 set(
   _obs_clang_common_options
   -fno-strict-aliasing
@@ -57,10 +53,8 @@ set(
   -Wno-error=shorten-64-to-32
 )
 
-# clang options for C
 set(_obs_clang_c_options ${_obs_clang_common_options} -Wno-shadow -Wno-float-conversion)
 
-# clang options for C++
 set(
   _obs_clang_cxx_options
   ${_obs_clang_common_options}

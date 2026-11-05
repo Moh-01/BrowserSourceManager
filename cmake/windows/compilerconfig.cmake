@@ -1,5 +1,3 @@
-# CMake Windows compiler configuration module
-
 include_guard(GLOBAL)
 
 include(compiler_common)

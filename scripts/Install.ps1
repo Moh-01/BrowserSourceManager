@@ -1,21 +1,3 @@
-<#
-.SYNOPSIS
-  Installs or removes Browser Source Manager for OBS Studio on Windows.
-
-.DESCRIPTION
-  By default it:
-    1. downloads the latest release from GitHub,
-    2. extracts it into %ProgramData%\obs-studio\plugins\browser-source-manager
-       (where OBS 30 and newer load plugins from),
-    3. replaces any older version that is already there.
-  Close OBS first.
-
-.EXAMPLE
-  .\Install.ps1                      # download and install the latest release
-  .\Install.ps1 -Zip .\browser-source-manager-1.0.1-windows-x64.zip
-  .\Install.ps1 -Uninstall           # remove the plugin
-  .\Install.ps1 -FromBuild           # install your own build from build_x64 (developers)
-#>
 param(
     [string]$Zip,
     [switch]$FromBuild,
@@ -25,12 +7,14 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# Edit these three to reuse this script for another plugin. If you change them, it downloads that repo's latest release,
+# installs it into %ProgramData%\obs-studio\plugins\<name>, and shows the new title in its messages.
 $name = 'browser-source-manager'
 $repo = 'Moh-01/BrowserSourceManager'
+$title = 'Browser Source Manager'
 $target = Join-Path $Destination $name
 $work = Join-Path ([IO.Path]::GetTempPath()) "$name-install"
 
-# Started from "Run with PowerShell": keep the window open at the end so the result can be read.
 $ownWindow = $PSCommandPath -and (([Environment]::GetCommandLineArgs() -join ' ') -like "*$PSCommandPath*")
 
 try {
@@ -42,9 +26,9 @@ try {
     if ($Uninstall) {
         if (Test-Path $target) {
             Remove-Item $target -Recurse -Force
-            Write-Host "Removed Browser Source Manager from $target"
+            Write-Host "Removed $title from $target"
         } else {
-            Write-Host 'Browser Source Manager is not installed.'
+            Write-Host "$title is not installed."
         }
         return
     }
@@ -76,8 +60,8 @@ try {
     if (Test-Path $target) { Remove-Item $target -Recurse -Force }
     New-Item -ItemType Directory -Force $target | Out-Null
     Copy-Item (Join-Path $source '*') $target -Recurse -Force
-    Write-Host "Installed Browser Source Manager to $target" -ForegroundColor Green
-    Write-Host 'Start OBS and open Docks > Browser Sources.'
+    Write-Host "Installed $title to $target" -ForegroundColor Green
+    Write-Host "Start OBS and open it from the Docks menu."
 } catch {
     Write-Host "Install failed: $($_.Exception.Message)" -ForegroundColor Red
 } finally {

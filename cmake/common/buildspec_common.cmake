@@ -1,8 +1,5 @@
-# Common build dependencies module
-
 include_guard(GLOBAL)
 
-# _check_deps_version: Checks for obs-deps VERSION file in prefix paths
 function(_check_deps_version version)
   set(found FALSE)
 
@@ -46,7 +43,6 @@ function(_check_deps_version version)
   return(PROPAGATE found CMAKE_PREFIX_PATH)
 endfunction()
 
-# _setup_obs_studio: Create obs-studio build project, then build libobs and obs-frontend-api
 function(_setup_obs_studio)
   if(NOT libobs_DIR)
     set(_is_fresh --fresh)
@@ -116,7 +112,6 @@ function(_setup_obs_studio)
   message(STATUS "Install ${label} (${arch}) - done")
 endfunction()
 
-# _check_dependencies: Fetch and extract pre-built OBS build dependencies
 function(_check_dependencies)
   file(READ "${CMAKE_CURRENT_SOURCE_DIR}/buildspec.json" buildspec)
 

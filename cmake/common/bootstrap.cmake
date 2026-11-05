@@ -1,8 +1,5 @@
-# Plugin bootstrap module
-
 include_guard(GLOBAL)
 
-# Map fallback configurations for optimized build configurations
 # gersemi: off
 set(
   CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO
@@ -30,7 +27,6 @@ set(
 )
 # gersemi: on
 
-# Prohibit in-source builds
 if("${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
   message(
     FATAL_ERROR
@@ -40,7 +36,6 @@ if("${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
   file(REMOVE_RECURSE "${CMAKE_CURRENT_SOURCE_DIR}/CMakeCache.txt" "${CMAKE_CURRENT_SOURCE_DIR}/CMakeFiles")
 endif()
 
-# Add common module directories to default search path
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/common")
 
 file(READ "${CMAKE_SOURCE_DIR}/buildspec.json" buildspec)
@@ -63,7 +58,6 @@ unset(_version_canonical)
 include(buildnumber)
 include(osconfig)
 
-# Allow selection of common build types via UI
 if(NOT CMAKE_GENERATOR MATCHES "(Xcode|Visual Studio .+)")
   if(NOT CMAKE_BUILD_TYPE)
     set(
@@ -80,7 +74,5 @@ if(NOT CMAKE_GENERATOR MATCHES "(Xcode|Visual Studio .+)")
   endif()
 endif()
 
-# Disable exports automatically going into the CMake package registry
 set(CMAKE_EXPORT_PACKAGE_REGISTRY FALSE)
-# Enable default inclusion of targets' source and binary directory
 set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
