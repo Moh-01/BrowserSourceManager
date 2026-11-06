@@ -1,7 +1,11 @@
 #include "browser-dock.hpp"
-#include "browser-sources.hpp"
+#include "bulk-edit-dialog.hpp"
 
 #include <obs-module.h>
+#include <obs.hpp>
+#include <util/platform.h>
+
+#include <climits>
 
 #include <QApplication>
 #include <QClipboard>
@@ -34,6 +38,9 @@ constexpr int StateRole = Qt::UserRole + 2;
 constexpr int ShutdownRole = Qt::UserRole + 3;
 constexpr int UrlRole = Qt::UserRole + 4;
 constexpr int SearchRole = Qt::UserRole + 5;
+constexpr int GroupRole = Qt::UserRole + 6;
+
+const QString kNoSceneKey = QStringLiteral("\x01");
 
 constexpr int kFilterAll = -1;
 
@@ -126,6 +133,14 @@ public:
 
 	bool operator<(const QTreeWidgetItem &other) const override
 	{
+		QVariant groupA = data(0, GroupRole);
+		QVariant groupB = other.data(0, GroupRole);
+		if (groupA.isValid() && groupB.isValid()) {
+			bool descending = treeWidget() &&
+					  treeWidget()->header()->sortIndicatorOrder() == Qt::DescendingOrder;
+			return descending ? groupA.toInt() > groupB.toInt() : groupA.toInt() < groupB.toInt();
+		}
+
 		int column = treeWidget() ? treeWidget()->sortColumn() : 0;
 		QVariant a = data(column, SortRole);
 		QVariant b = other.data(column, SortRole);
@@ -158,6 +173,16 @@ BrowserDock::BrowserDock(QWidget *parent) : QWidget(parent)
 	unloadHidden->setText(Text("UnloadHidden"));
 	unloadHidden->setToolTip(Text("UnloadHidden.Tooltip"));
 
+	editButton = new QToolButton(this);
+	editButton->setText(Text("Action.Edit"));
+	editButton->setToolTip(Text("Action.Edit.Tooltip"));
+	editButton->setEnabled(false);
+
+	groupButton = new QToolButton(this);
+	groupButton->setText(Text("GroupByScene"));
+	groupButton->setToolTip(Text("GroupByScene.Tooltip"));
+	groupButton->setCheckable(true);
+
 	auto *topRow = new QHBoxLayout();
 	topRow->addWidget(search, 1);
 	topRow->addWidget(stateFilter);
@@ -165,7 +190,9 @@ BrowserDock::BrowserDock(QWidget *parent) : QWidget(parent)
 	auto *actionRow = new QHBoxLayout();
 	actionRow->addWidget(refreshAll);
 	actionRow->addWidget(unloadHidden);
+	actionRow->addWidget(editButton);
 	actionRow->addStretch(1);
+	actionRow->addWidget(groupButton);
 
 	tree = new QTreeWidget(this);
 	tree->setColumnCount(ColCount);
@@ -201,9 +228,20 @@ BrowserDock::BrowserDock(QWidget *parent) : QWidget(parent)
 	connect(refreshAll, &QToolButton::clicked, this, &BrowserDock::RefreshAll);
 	connect(unloadHidden, &QToolButton::clicked, this, &BrowserDock::UnloadHidden);
 	connect(tree, &QTreeWidget::customContextMenuRequested, this, &BrowserDock::ShowContextMenu);
+	connect(editButton, &QToolButton::clicked, this, &BrowserDock::EditSelected);
+	connect(groupButton, &QToolButton::toggled, this, &BrowserDock::SetGrouped);
+	connect(tree, &QTreeWidget::itemSelectionChanged, this,
+		[this]() { editButton->setEnabled(!SelectedUuids().isEmpty()); });
 	connect(tree, &QTreeWidget::itemDoubleClicked, this, [](QTreeWidgetItem *item, int) {
-		OpenSourceProperties(item->data(ColName, UuidRole).toString().toStdString());
+		QString uuid = item->data(ColName, UuidRole).toString();
+		if (!uuid.isEmpty())
+			OpenSourceProperties(uuid.toStdString());
 	});
+
+	LoadSettings();
+	groupButton->setChecked(grouped);
+	tree->setRootIsDecorated(grouped);
+	tree->setColumnHidden(ColScenes, grouped);
 }
 
 void BrowserDock::HandleFrontendEvent(enum obs_frontend_event event)
@@ -217,8 +255,7 @@ void BrowserDock::HandleFrontendEvent(enum obs_frontend_event event)
 		break;
 	case OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGING:
 		paused = true;
-		tree->clear();
-		items.clear();
+		ClearRows();
 		break;
 	case OBS_FRONTEND_EVENT_EXIT:
 		paused = true;
@@ -235,66 +272,139 @@ void BrowserDock::showEvent(QShowEvent *event)
 	Reload();
 }
 
+void BrowserDock::ClearRows()
+{
+	tree->clear();
+	rows.clear();
+	groups.clear();
+}
+
+void BrowserDock::SetGrouped(bool enabled)
+{
+	if (grouped == enabled)
+		return;
+	grouped = enabled;
+	ClearRows();
+	tree->setRootIsDecorated(grouped);
+	tree->setColumnHidden(ColScenes, grouped);
+	SaveSettings();
+	Reload();
+}
+
+QTreeWidgetItem *BrowserDock::GroupItem(const QString &key, int order)
+{
+	QTreeWidgetItem *group = groups.value(key);
+	if (!group) {
+		group = new SortableItem(tree);
+		group->setFlags(Qt::ItemIsEnabled);
+		group->setFirstColumnSpanned(true);
+		QFont font = group->font(0);
+		font.setBold(true);
+		group->setFont(0, font);
+		group->setExpanded(true);
+		groups.insert(key, group);
+	}
+	group->setData(0, GroupRole, order);
+	return group;
+}
+
 void BrowserDock::Reload()
 {
 	if (paused || !isVisible())
 		return;
 
 	std::vector<BrowserSourceInfo> sources = CollectBrowserSources();
+	QHash<QString, int> sceneOrder;
+	if (grouped) {
+		int index = 0;
+		for (const auto &scene : SceneNames())
+			sceneOrder.insert(QString::fromStdString(scene), index++);
+	}
+
 	int counts[4] = {};
-	QSet<QString> seen;
+	QSet<QString> seenRows;
+	QSet<QString> seenGroups;
+	infos.clear();
 
 	tree->setSortingEnabled(false);
 
 	for (const auto &info : sources) {
 		QString uuid = QString::fromStdString(info.uuid);
-		seen.insert(uuid);
+		infos.insert(uuid, info);
 		counts[(int)info.state]++;
-
-		QTreeWidgetItem *item = items.value(uuid);
-		if (!item) {
-			item = new SortableItem(tree);
-			item->setData(ColName, UuidRole, uuid);
-			items.insert(uuid, item);
-		}
 
 		QString name = QString::fromStdString(info.name);
 		QString url = QString::fromStdString(info.url);
 		QStringList scenes;
 		for (const auto &scene : info.scenes)
 			scenes << QString::fromStdString(scene);
-
-		item->setIcon(ColState, StateIcon(info.state));
-		item->setText(ColState, StateLabel(info.state));
-		item->setToolTip(ColState, StateTooltip(info.state));
-		item->setData(ColState, SortRole, (int)info.state);
-		item->setData(ColState, StateRole, (int)info.state);
-		item->setData(ColState, ShutdownRole, info.shutdownWhenHidden);
-
-		item->setText(ColName, name);
-		item->setToolTip(ColName, name);
-
-		item->setText(ColPage, PageLabel(info));
-		item->setToolTip(ColPage, url);
-		item->setData(ColPage, UrlRole, url);
-
-		item->setText(ColSize, QStringLiteral("%1x%2").arg(info.width).arg(info.height));
-		item->setData(ColSize, SortRole, (qlonglong)info.width * info.height);
-
-		item->setText(ColFps, info.customFps ? QString::number(info.fps) : Text("Fps.Canvas").arg(info.fps));
-		item->setData(ColFps, SortRole, info.fps);
-
 		QString sceneText = scenes.isEmpty() ? Text("Scenes.None") : scenes.join(QStringLiteral(", "));
-		item->setText(ColScenes, sceneText);
-		item->setToolTip(ColScenes, scenes.join(QStringLiteral("\n")));
 
-		item->setData(ColName, SearchRole, (name + ' ' + url + ' ' + sceneText).toLower());
+		QStringList groupKeys;
+		if (!grouped)
+			groupKeys << QString();
+		else if (scenes.isEmpty())
+			groupKeys << kNoSceneKey;
+		else
+			groupKeys = scenes;
+
+		for (const QString &key : groupKeys) {
+			QTreeWidgetItem *parent = nullptr;
+			if (grouped) {
+				int order = key == kNoSceneKey ? INT_MAX : sceneOrder.value(key, INT_MAX - 1);
+				parent = GroupItem(key, order);
+				seenGroups.insert(key);
+			}
+
+			QString rowKey = key + QLatin1Char('\n') + uuid;
+			seenRows.insert(rowKey);
+			QTreeWidgetItem *item = rows.value(rowKey);
+			if (!item) {
+				item = parent ? new SortableItem(parent) : new SortableItem(tree);
+				item->setData(ColName, UuidRole, uuid);
+				rows.insert(rowKey, item);
+			}
+
+			item->setIcon(ColState, StateIcon(info.state));
+			item->setText(ColState, StateLabel(info.state));
+			item->setToolTip(ColState, StateTooltip(info.state));
+			item->setData(ColState, SortRole, (int)info.state);
+			item->setData(ColState, StateRole, (int)info.state);
+			item->setData(ColState, ShutdownRole, info.shutdownWhenHidden);
+
+			item->setText(ColName, name);
+			item->setToolTip(ColName, name);
+
+			item->setText(ColPage, PageLabel(info));
+			item->setToolTip(ColPage, url);
+			item->setData(ColPage, UrlRole, url);
+
+			item->setText(ColSize, QStringLiteral("%1x%2").arg(info.width).arg(info.height));
+			item->setData(ColSize, SortRole, (qlonglong)info.width * info.height);
+
+			item->setText(ColFps,
+				      info.customFps ? QString::number(info.fps) : Text("Fps.Canvas").arg(info.fps));
+			item->setData(ColFps, SortRole, info.fps);
+
+			item->setText(ColScenes, sceneText);
+			item->setToolTip(ColScenes, scenes.join(QStringLiteral("\n")));
+
+			item->setData(ColName, SearchRole, (name + ' ' + url + ' ' + sceneText).toLower());
+		}
 	}
 
-	for (auto it = items.begin(); it != items.end();) {
-		if (!seen.contains(it.key())) {
+	for (auto it = rows.begin(); it != rows.end();) {
+		if (!seenRows.contains(it.key())) {
 			delete it.value();
-			it = items.erase(it);
+			it = rows.erase(it);
+		} else {
+			++it;
+		}
+	}
+	for (auto it = groups.begin(); it != groups.end();) {
+		if (!seenGroups.contains(it.key())) {
+			delete it.value();
+			it = groups.erase(it);
 		} else {
 			++it;
 		}
@@ -302,7 +412,7 @@ void BrowserDock::Reload()
 
 	tree->setSortingEnabled(true);
 
-	if (!columnsFitted && !items.isEmpty()) {
+	if (!columnsFitted && !rows.isEmpty()) {
 		tree->header()->resizeSections(QHeaderView::ResizeToContents);
 		columnsFitted = true;
 	}
@@ -321,18 +431,33 @@ void BrowserDock::ApplyFilter()
 	QString needle = search->text().trimmed().toLower();
 	int wanted = stateFilter->currentData().toInt();
 
-	for (QTreeWidgetItem *item : items) {
+	for (QTreeWidgetItem *item : rows) {
 		bool matchesText = needle.isEmpty() || item->data(ColName, SearchRole).toString().contains(needle);
 		bool matchesState = wanted == kFilterAll || item->data(ColState, StateRole).toInt() == wanted;
 		item->setHidden(!(matchesText && matchesState));
+	}
+
+	for (auto it = groups.begin(); it != groups.end(); ++it) {
+		QTreeWidgetItem *group = it.value();
+		int visible = 0;
+		for (int i = 0; i < group->childCount(); i++) {
+			if (!group->child(i)->isHidden())
+				visible++;
+		}
+		QString title = it.key() == kNoSceneKey ? Text("Scenes.None") : it.key();
+		group->setText(0, QStringLiteral("%1  (%2)").arg(title).arg(visible));
+		group->setHidden(visible == 0);
 	}
 }
 
 QStringList BrowserDock::SelectedUuids() const
 {
 	QStringList uuids;
-	for (QTreeWidgetItem *item : tree->selectedItems())
-		uuids << item->data(ColName, UuidRole).toString();
+	for (QTreeWidgetItem *item : tree->selectedItems()) {
+		QString uuid = item->data(ColName, UuidRole).toString();
+		if (!uuid.isEmpty() && !uuids.contains(uuid))
+			uuids << uuid;
+	}
 	return uuids;
 }
 
@@ -341,16 +466,26 @@ void BrowserDock::ShowContextMenu(const QPoint &pos)
 	QTreeWidgetItem *clicked = tree->itemAt(pos);
 	if (!clicked)
 		return;
-	if (!clicked->isSelected()) {
+
+	bool isGroup = clicked->data(0, GroupRole).isValid();
+	if (isGroup) {
+		tree->clearSelection();
+		for (int i = 0; i < clicked->childCount(); i++) {
+			if (!clicked->child(i)->isHidden())
+				clicked->child(i)->setSelected(true);
+		}
+	} else if (!clicked->isSelected()) {
 		tree->clearSelection();
 		clicked->setSelected(true);
 	}
 
 	QStringList uuids = SelectedUuids();
+	if (uuids.isEmpty())
+		return;
 	QList<QTreeWidgetItem *> selected = tree->selectedItems();
-	bool single = selected.size() == 1;
-	QString uuid = clicked->data(ColName, UuidRole).toString();
-	QString url = clicked->data(ColPage, UrlRole).toString();
+	bool single = uuids.size() == 1;
+	QString uuid = uuids.first();
+	QString url = isGroup ? QString() : clicked->data(ColPage, UrlRole).toString();
 
 	bool allShutdown = true;
 	for (QTreeWidgetItem *item : selected)
@@ -369,6 +504,7 @@ void BrowserDock::ShowContextMenu(const QPoint &pos)
 	}
 
 	menu.addSeparator();
+	menu.addAction(Text("Action.Edit"), this, &BrowserDock::EditSelected);
 
 	QAction *shutdown = menu.addAction(Text("Action.Shutdown"));
 	shutdown->setCheckable(true);
@@ -394,9 +530,33 @@ void BrowserDock::ShowContextMenu(const QPoint &pos)
 	menu.exec(tree->viewport()->mapToGlobal(pos));
 }
 
+void BrowserDock::EditSelected()
+{
+	QStringList uuids = SelectedUuids();
+	if (uuids.isEmpty())
+		return;
+
+	std::vector<BrowserSourceInfo> selected;
+	for (const QString &uuid : uuids) {
+		if (infos.contains(uuid))
+			selected.push_back(infos.value(uuid));
+	}
+	if (selected.empty())
+		return;
+
+	BulkEditDialog dialog(selected, this);
+	if (dialog.exec() != QDialog::Accepted)
+		return;
+
+	BrowserEdit edit = dialog.Edit();
+	for (const auto &info : selected)
+		ApplyBrowserEdit(info.uuid, edit);
+	Reload();
+}
+
 void BrowserDock::RefreshAll()
 {
-	for (const QString &uuid : items.keys())
+	for (const QString &uuid : infos.keys())
 		RefreshBrowserSource(uuid.toStdString());
 }
 
@@ -404,9 +564,9 @@ void BrowserDock::UnloadHidden()
 {
 	// Edit here to change which sources Unload hidden affects. If you include sources that are showing, they reload on air.
 	QStringList targets;
-	for (QTreeWidgetItem *item : items) {
-		if (item->data(ColState, StateRole).toInt() == (int)BrowserState::RunningHidden)
-			targets << item->data(ColName, UuidRole).toString();
+	for (const auto &info : infos) {
+		if (info.state == BrowserState::RunningHidden)
+			targets << QString::fromStdString(info.uuid);
 	}
 
 	if (targets.isEmpty()) {
@@ -422,4 +582,26 @@ void BrowserDock::UnloadHidden()
 	for (const QString &uuid : targets)
 		SetShutdownWhenHidden(uuid.toStdString(), true);
 	Reload();
+}
+
+void BrowserDock::LoadSettings()
+{
+	char *path = obs_module_config_path("settings.json");
+	OBSDataAutoRelease data = obs_data_create_from_json_file_safe(path, "bak");
+	bfree(path);
+	if (data)
+		grouped = obs_data_get_bool(data, "group_by_scene");
+}
+
+void BrowserDock::SaveSettings() const
+{
+	char *dir = obs_module_config_path("");
+	os_mkdirs(dir);
+	bfree(dir);
+
+	char *path = obs_module_config_path("settings.json");
+	OBSDataAutoRelease data = obs_data_create();
+	obs_data_set_bool(data, "group_by_scene", grouped);
+	obs_data_save_json_safe(data, path, "tmp", "bak");
+	bfree(path);
 }

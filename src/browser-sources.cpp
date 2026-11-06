@@ -76,6 +76,8 @@ bool AddBrowserSource(void *param, obs_source_t *source)
 	info.customFps = obs_data_get_bool(settings, "fps_custom");
 	info.fps = info.customFps ? (int)obs_data_get_int(settings, "fps") : CanvasFps();
 	info.shutdownWhenHidden = obs_data_get_bool(settings, "shutdown");
+	info.restartWhenActive = obs_data_get_bool(settings, "restart_when_active");
+	info.rerouteAudio = obs_data_get_bool(settings, "reroute_audio");
 
 	if (obs_source_active(source))
 		info.state = BrowserState::OnAir;
@@ -114,6 +116,17 @@ std::vector<BrowserSourceInfo> CollectBrowserSources()
 	return list;
 }
 
+std::vector<std::string> SceneNames()
+{
+	std::vector<std::string> names;
+	obs_frontend_source_list scenes = {};
+	obs_frontend_get_scenes(&scenes);
+	for (size_t i = 0; i < scenes.sources.num; i++)
+		names.emplace_back(obs_source_get_name(scenes.sources.array[i]));
+	obs_frontend_source_list_free(&scenes);
+	return names;
+}
+
 int CanvasFps()
 {
 	obs_video_info ovi = {};
@@ -144,6 +157,31 @@ bool SetShutdownWhenHidden(const std::string &uuid, bool enabled)
 
 	OBSDataAutoRelease update = obs_data_create();
 	obs_data_set_bool(update, "shutdown", enabled);
+	obs_source_update(source, update);
+	return true;
+}
+
+bool ApplyBrowserEdit(const std::string &uuid, const BrowserEdit &edit)
+{
+	OBSSourceAutoRelease source = GetBrowserSource(uuid);
+	if (!source || edit.IsEmpty())
+		return false;
+
+	OBSDataAutoRelease update = obs_data_create();
+	if (edit.width)
+		obs_data_set_int(update, "width", *edit.width);
+	if (edit.height)
+		obs_data_set_int(update, "height", *edit.height);
+	if (edit.customFps)
+		obs_data_set_bool(update, "fps_custom", *edit.customFps);
+	if (edit.fps)
+		obs_data_set_int(update, "fps", *edit.fps);
+	if (edit.shutdownWhenHidden)
+		obs_data_set_bool(update, "shutdown", *edit.shutdownWhenHidden);
+	if (edit.restartWhenActive)
+		obs_data_set_bool(update, "restart_when_active", *edit.restartWhenActive);
+	if (edit.rerouteAudio)
+		obs_data_set_bool(update, "reroute_audio", *edit.rerouteAudio);
 	obs_source_update(source, update);
 	return true;
 }
