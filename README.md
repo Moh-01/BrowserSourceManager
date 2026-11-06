@@ -4,9 +4,9 @@
 
 **One dock to see and control every browser source in OBS.**
 
-`v1.0.1` &nbsp;·&nbsp; Added 31 Oct 2026
+`v1.1.0` &nbsp;·&nbsp; Added 31 Oct 2026
 
-[![Release v1.0.1](https://img.shields.io/badge/release-v1.0.1-302E31)](https://github.com/Moh-01/BrowserSourceManager/releases/latest) ![OBS 31+](https://img.shields.io/badge/OBS-31%2B-302E31?logo=obsstudio&logoColor=white) ![Windows x64](https://img.shields.io/badge/Windows-x64-302E31)
+[![Release v1.1.0](https://img.shields.io/badge/release-v1.1.0-302E31)](https://github.com/Moh-01/BrowserSourceManager/releases/latest) ![OBS 31+](https://img.shields.io/badge/OBS-31%2B-302E31?logo=obsstudio&logoColor=white) ![Windows x64](https://img.shields.io/badge/Windows-x64-302E31)
 
 <p align="center"><img src="docs/images/browser-source-manager.png" width="600" alt="Browser Source Manager dock in OBS listing browser sources with their state"></p>
 
@@ -26,9 +26,11 @@ Every browser source runs its own web browser. Hidden ones keep using CPU, GPU a
 
 - **One list**: name, website, size, FPS and scenes for every browser source
 - **Live state**: updated every second, with a summary count
+- **Group by scene**: show the list under each scene, in your scene order
 - **Search and filter**: by name, website, scene or state
 - **Refresh all**: reload every page at once, bypassing the cache
 - **Unload hidden**: stop every hidden source from using resources, without touching anything on air
+- **Bulk edit**: change size, FPS and other settings on many sources, or a whole scene, at once
 - **Private**: shows only the website name, never full URLs or overlay keys
 
 | Dot | State | Meaning |
@@ -37,6 +39,15 @@ Every browser source runs its own web browser. Hidden ones keep using CPU, GPU a
 | Blue | **Preview** | Shown in the studio mode preview or a projector |
 | Orange | **Hidden, running** | Not shown, but still loaded and using resources |
 | Gray | **Unloaded** | Not shown, and shut down until it is shown again |
+
+<div align="center">
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/browser-source-manager-grouped.png" width="400" alt="Browser Source Manager dock grouped by scene"><br><sub>Group by scene</sub></td>
+    <td align="center"><img src="docs/images/browser-source-manager-properties.png" width="400" alt="Source properties opened by double-clicking a row"><br><sub>Double-click opens properties</sub></td>
+  </tr>
+</table>
+</div>
 
 ---
 
@@ -111,6 +122,9 @@ Open **Docks > Browser Sources**.
 | Click inside the page | Right-click > **Interact** |
 | Unload one source while hidden | Right-click > **Shutdown when not visible** |
 | Copy or open the URL | Right-click > **Copy URL** or **Open in web browser** |
+| Group the list by scene | **Group by scene** |
+| Change settings on several sources | Select them > **Edit...** |
+| Change every source in one scene | Group by scene, right-click the scene > **Edit...** |
 
 Select several sources to act on all of them. Click a column header to sort.
 
@@ -119,6 +133,7 @@ Select several sources to act on all of them. Click a column header to sort.
 ## Notes
 
 - Turning *Shutdown when not visible* on or off reloads that page.
+- **Edit...** only changes the settings you tick. FPS, shutdown, refresh and audio changes reload the page; size changes do not. It warns you first if any of the sources are on air.
 - Unloaded pages load again when shown, so an alert box may take a moment to reconnect after a scene switch.
 - The dock only updates while it is visible.
 
